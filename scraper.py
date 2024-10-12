@@ -1,35 +1,52 @@
 import requests
 import json
+from sqlalchemy import create_engine, Column, Integer, String, JSON
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
 
-# 设置请求的URL和Headers
-url = "https://192.168.0.10:30061/trailv2/api/case/page"  # 替换为实际接口URL
+# 定义数据库模型
+Base = declarative_base()
+
+class Song(Base):
+    __tablename__ = 'songs'
+    
+    id = Column(Integer, primary_key=True)
+    song_id = Column(String, unique=True)
+    details = Column(JSON)  # 存储JSON数据
+
+# 创建数据库连接
+engine = create_engine('sqlite:///songs.db')  # 使用SQLite数据库
+Base.metadata.create_all(engine)
+
+Session = sessionmaker(bind=engine)
+session = Session()
+
+# 网易云音乐API接口示例 - 获取歌曲详情
+url = "https://www.leborn.me/blog/home/page/0"
 params = {
-"state": "All",
-"pageSize": 10,
-"pageNum": 1,
+    "ids": "[123456]"  # 替换为实际的歌曲ID
 }
 headers = {
-    "x-token":"b403ec2f-2a35-47ec-b211-5b030848af02",
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+    "User-Agent": "Mozilla/5.0",
 }
 
-def fetch_data():
-    try:
-        response = requests.get(url, headers=headers, params=params, verify=False)
-        response.raise_for_status()  # 检查请求是否成功
-        data = response.json()  # 获取JSON格式的数据
-        return data
-    except requests.exceptions.RequestException as e:
-        print(f"请求失败: {e}")
-        return None
+def fetch_song_details():
+    response = requests.get(url, headers=headers, params=params)
+    response.raise_for_status()
+    return response.json()
+
+def save_song_to_db(song_id, details):
+    song = Song(song_id=song_id, details=details)
+    session.add(song)
+    session.commit()
 
 def main():
-    data = fetch_data()
-    if data:
-        # 处理数据，例如保存到文件
-        with open("data.json", "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
-        print("数据已保存到data.json")
+    song_data = fetch_song_details()
+    if song_data and 'songs' in song_data and song_data['songs']:
+        for song in song_data['songs']:
+            song_id = str(song['id'])
+            save_song_to_db(song_id, song)  # 将数据存入数据库
+            print(f"保存歌曲 ID: {song_id}")
 
 if __name__ == "__main__":
     main()
